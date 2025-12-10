@@ -1,0 +1,164 @@
+package handler
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"naradai-backend/internal/models"
+	"naradai-backend/internal/service"
+)
+
+type CompetitiveAnalysisHandler struct {
+	service *service.CompetitiveAnalysisService
+}
+
+func NewCompetitiveAnalysisHandler(svc *service.CompetitiveAnalysisService) *CompetitiveAnalysisHandler {
+	return &CompetitiveAnalysisHandler{service: svc}
+}
+
+func (h *CompetitiveAnalysisHandler) GetAll(c *gin.Context) {
+	isActive := c.Query("is_active")
+	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "100"), 10, 64)
+	offset, _ := strconv.ParseInt(c.DefaultQuery("offset", "0"), 10, 64)
+
+	filter := bson.M{}
+	if isActive == "true" {
+		filter["is_active"] = true
+	} else if isActive == "false" {
+		filter["is_active"] = false
+	}
+
+	analyses, total, err := h.service.GetAll(c.Request.Context(), filter, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to fetch competitive analyses",
+		})
+		return
+	}
+
+	data := make([]map[string]interface{}, len(analyses))
+	for i, analysis := range analyses {
+		data[i] = analysis.ToResponse()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+		"total":   total,
+	})
+}
+
+func (h *CompetitiveAnalysisHandler) GetByID(c *gin.Context) {
+	id := c.Param("id")
+
+	analysis, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   "Competitive analysis not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to fetch competitive analysis",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    analysis.ToResponse(),
+	})
+}
+
+func (h *CompetitiveAnalysisHandler) Create(c *gin.Context) {
+	var analysis models.CompetitiveAnalysis
+	if err := c.ShouldBindJSON(&analysis); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.service.Create(c.Request.Context(), &analysis); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to create competitive analysis: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Competitive analysis created successfully",
+		"data":    analysis.ToResponse(),
+	})
+}
+
+func (h *CompetitiveAnalysisHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+
+	var analysis models.CompetitiveAnalysis
+	if err := c.ShouldBindJSON(&analysis); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.service.Update(c.Request.Context(), id, &analysis); err != nil {
+		if err.Error() == "competitive analysis not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   "Competitive analysis not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to update competitive analysis: " + err.Error(),
+		})
+		return
+	}
+
+	updatedAnalysis, _ := h.service.GetByID(c.Request.Context(), id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Competitive analysis updated successfully",
+		"data":    updatedAnalysis.ToResponse(),
+	})
+}
+
+func (h *CompetitiveAnalysisHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+
+	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+		if err.Error() == "competitive analysis not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   "Competitive analysis not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to delete competitive analysis",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Competitive analysis deleted successfully",
+	})
+}
+
