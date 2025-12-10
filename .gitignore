@@ -11,12 +11,6 @@ node_modules/
 /dist
 *.log
 
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
 # IDE
 .vscode/
@@ -41,5 +35,3 @@ go.work
 server
 
 # Backend
-backend/server
-backend/.env
