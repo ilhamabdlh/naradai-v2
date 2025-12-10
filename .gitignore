@@ -32,6 +32,5 @@ Thumbs.db
 *.test
 *.out
 go.work
-server
 
 # Backend
